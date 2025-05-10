@@ -1,0 +1,45 @@
+﻿@page "/"
+
+@using System.Text.Json
+@using Microsoft.AspNetCore.Components.Web
+
+<div class="container mt-3">
+	<div class="d-flex align-items-center mb-3">
+		<div class="me-3">
+			<label for="gridSize" class="form-label">Grid size</label>
+			<select id="gridSize" class="form-select" @bind="GridSize">
+				@for (int i = 5; i <= 21; i++)
+				{
+					<option value="@i" selected="@(i == _gridSize)">@i</option>
+				}
+			</select>
+		</div>
+		<button class="btn btn-success me-2" @onclick="SaveAsSvg">Save as SVG</button>
+		<button class="btn btn-info me-2" @onclick="SaveAsPng">Save as PNG</button>
+		<button class="btn btn-warning" @onclick="SaveAsJson">Save as JSON</button>
+	</div>
+
+	<div class="crossword-grid">
+		@for (int rowIndex = 0; rowIndex < _gridSize; rowIndex++)
+		{
+			<div class="d-flex">
+				@for (int colIndex = 0; colIndex < _gridSize; colIndex++)
+				{
+					int currentRow = rowIndex; // Capture the current row index
+					int currentCol = colIndex; // Capture the current column index
+					var square = _crosswordGrid[rowIndex, colIndex];
+					<div class="grid-cell@(square.IsWhite ? " white-square" : string.Empty)"
+						 @onclick="x => EnsureSquareWhite(currentRow, currentCol)">
+						@if (square.Number is not null)
+						{
+							<div class="squareNumber">@square.Number</div>
+						}
+						<div class="squareLetter">@square.Character</div>
+					</div>
+				}
+			</div>
+		}
+	</div>
+
+
+</div>
