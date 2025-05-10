@@ -161,6 +161,7 @@ public partial class Home
 						while (true)
 						{
 							downWordRowIndex++;
+							wordLength++;
 							if (downWordRowIndex == _gridSize || _crosswordGrid[downWordRowIndex, colIndex].Character == Square.Black)
 							{
 								break;
@@ -184,6 +185,7 @@ public partial class Home
 						while (true)
 						{
 							acrossWordColIndex++;
+							wordLength++;
 							if (acrossWordColIndex == _gridSize || _crosswordGrid[rowIndex, acrossWordColIndex].Character == Square.Black)
 							{
 								break;
