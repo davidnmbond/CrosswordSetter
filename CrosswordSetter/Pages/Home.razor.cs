@@ -1,10 +1,14 @@
 using CrosswordSetter.Models;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 
 namespace CrosswordSetter.Pages;
 
 public partial class Home
 {
+	[Inject]
+	private HttpClient _httpClient { get; set; } = default!;
+
 	// Default grid size
 	private const int DefaultGridSize = 15;
 
@@ -15,7 +19,14 @@ public partial class Home
 	private Square[,] _crosswordGrid = new Square[DefaultGridSize, DefaultGridSize];
 
 	// Clue list
-	private readonly List<Clue> _clueList = [];
+	private readonly List<Clue> _clues = [];
+
+	// Dictionary
+	private readonly List<string> _dictionary = [];
+
+	private bool _isGridLocked = false;
+	private bool _isDictionaryLoaded;
+	private int _whiteSquareCount = 0;
 
 	private int GridSize
 	{
@@ -32,9 +43,29 @@ public partial class Home
 		}
 	}
 
-	protected override void OnInitialized()
+	protected override async Task OnInitializedAsync()
 	{
 		InitializeGrid();
+		// Load the dictionary file from ./wwwroot/dictionary.txt using the HttpClient
+		// and populate the _dictionary list with its contents
+		var response = await _httpClient.GetAsync("dictionaries/en.txt");
+		if (response.IsSuccessStatusCode)
+		{
+			var content = await response.Content.ReadAsStringAsync();
+			_dictionary.AddRange(content
+				.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
+				// Exclude entries that contain characters other than standard roman letters
+				.Where(x => x.All(c => char.IsLetter(c) && c < 128))
+				);
+			if (_dictionary.Count > 1000)
+			{
+				_isDictionaryLoaded = true;
+			}
+		}
+		else
+		{
+			Console.WriteLine("Failed to load dictionary file.");
+		}
 	}
 
 	private void InitializeGrid()
@@ -56,33 +87,61 @@ public partial class Home
 			}
 		}
 
-		_clueList.Clear(); // Clear the clue list when initializing
+		_clues.Clear(); // Clear the clue list when initializing
+
+		_clues.Add(new Clue
+		{
+			Number = 1,
+			Direction = Direction.Across,
+			WordLengths = [3, 4],
+			Text = "Test clue that has really long text to try to make it overrun the column"
+		});
+		_clues.Add(new Clue
+		{
+			Number = 2,
+			Direction = Direction.Across,
+			WordLengths = [3],
+			Text = "Test clue"
+		});
+		_clues.Add(new Clue
+		{
+			Number = 1,
+			Direction = Direction.Down,
+			WordLengths = [12],
+			Text = "Test clue"
+		});
 	}
 
 
-	private void EnsureSquareWhite(int row, int col)
+	private void ToggleSquareColor(int row, int col)
 	{
 		// Ensure the square at (row, col) is white
-		if (_crosswordGrid[row, col].IsWhite)
-		{
-			return;
-		}
+		var character = _crosswordGrid[row, col].IsWhite
+			? Square.Black
+			: Square.Blank;
 
 		// Make the square at (row, col) white
-		_crosswordGrid[row, col].Character = Square.Blank;
+		_crosswordGrid[row, col].Character = character;
 
 		// Calculate and make the other three rotationally symmetric squares white
 		int rotated90Row = col;
 		int rotated90Col = _gridSize - 1 - row;
-		_crosswordGrid[rotated90Row, rotated90Col].Character = Square.Blank; // 90-degree rotation
+		_crosswordGrid[rotated90Row, rotated90Col].Character = character; // 90-degree rotation
 
 		int rotated180Row = _gridSize - 1 - row;
 		int rotated180Col = _gridSize - 1 - col;
-		_crosswordGrid[rotated180Row, rotated180Col].Character = Square.Blank; // 180-degree rotation
+		_crosswordGrid[rotated180Row, rotated180Col].Character = character; // 180-degree rotation
 
 		int rotated270Row = _gridSize - 1 - col;
 		int rotated270Col = row;
-		_crosswordGrid[rotated270Row, rotated270Col].Character = Square.Blank; // 270-degree rotation
+		_crosswordGrid[rotated270Row, rotated270Col].Character = character; // 270-degree rotation
+
+		_whiteSquareCount += character switch
+		{
+			Square.Black => -4,
+			Square.Blank => 4,
+			_ => throw new InvalidOperationException("Invalid character")
+		};
 
 		// Update the little numbers in the top right
 		UpdateNumbers();
@@ -116,18 +175,7 @@ public partial class Home
 			}
 		}
 	}
-
-	private void SaveAsJson(MouseEventArgs args)
-	{
-		throw new NotImplementedException();
-	}
-
-	private void SaveAsPng(MouseEventArgs args)
-	{
-		throw new NotImplementedException();
-	}
-
-	private void SaveAsSvg(MouseEventArgs args)
+	private void FillGrid(MouseEventArgs args)
 	{
 		throw new NotImplementedException();
 	}

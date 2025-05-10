@@ -1,22 +1,29 @@
 ﻿@page "/"
 
 @using System.Text.Json
+@using CrosswordSetter.Models
 @using Microsoft.AspNetCore.Components.Web
 
 <div class="container mt-3">
 	<div class="d-flex align-items-center mb-3">
 		<div class="me-3">
 			<label for="gridSize" class="form-label">Grid size</label>
-			<select id="gridSize" class="form-select" @bind="GridSize">
+			<select id="gridSize" class="form-select" @bind="GridSize" disabled="@_isGridLocked">
 				@for (int i = 5; i <= 21; i++)
 				{
 					<option value="@i" selected="@(i == _gridSize)">@i</option>
 				}
 			</select>
 		</div>
-		<button class="btn btn-success me-2" @onclick="SaveAsSvg">Save as SVG</button>
-		<button class="btn btn-info me-2" @onclick="SaveAsPng">Save as PNG</button>
-		<button class="btn btn-warning" @onclick="SaveAsJson">Save as JSON</button>
+		<div class="form-check form-switch me-3">
+			<input class="form-check-input" type="checkbox" id="lockSwitch" @bind="_isGridLocked" />
+			<label class="form-check-label" for="lockSwitch">
+				Lock grid
+			</label>
+		</div>
+		<button class="btn btn-primary me-2" @onclick="FillGrid" disabled="@(!_isDictionaryLoaded || !_isGridLocked || _whiteSquareCount < 3)" title="Grid must be locked, the dictionary must be loaded and at least 3 squares must be white.">
+			Fill Grid
+		</button>
 	</div>
 
 	<div class="crossword-grid">
@@ -29,17 +36,49 @@
 					int currentCol = colIndex; // Capture the current column index
 					var square = _crosswordGrid[rowIndex, colIndex];
 					<div class="grid-cell@(square.IsWhite ? " white-square" : string.Empty)"
-						 @onclick="x => EnsureSquareWhite(currentRow, currentCol)">
+						 @onclick="(_isGridLocked ? null! : (x => ToggleSquareColor(currentRow, currentCol)))">
 						@if (square.Number is not null)
 						{
 							<div class="squareNumber">@square.Number</div>
 						}
-						<div class="squareLetter">@square.Character</div>
+						@if (square.IsWhite)
+						{
+							<input class="squareLetter" @bind="@square.Character" type="text" maxlength="1" disabled="@(!_isGridLocked)" />
+						}
 					</div>
 				}
 			</div>
 		}
 	</div>
-
-
+	@if (_isGridLocked)
+	{
+		<div class="row">
+			<div class="col-md-6">
+				<h5>Across</h5>
+				<ul class="list-group">
+					@foreach (var clue in _clues.Where(c => c.Direction == Direction.Across))
+					{
+						<li class="list-group-item">
+							<clueNumber>@(clue.Number).</clueNumber>
+							<input class="clueText" @bind="clue.Text" />
+							<clueWordCounts>(@string.Join(", ", clue.WordLengths))</clueWordCounts>
+						</li>
+					}
+				</ul>
+			</div>
+			<div class="col-md-6">
+				<h5>Down</h5>
+				<ul class="list-group">
+					@foreach (var clue in _clues.Where(c => c.Direction == Direction.Down))
+					{
+						<li class="list-group-item">
+							<clueNumber>@(clue.Number).</clueNumber>
+							<input class="clueText" @bind="clue.Text" />
+							<clueWordCounts>(@string.Join(", ", clue.WordLengths))</clueWordCounts>
+						</li>
+					}
+				</ul>
+			</div>
+		</div>
+	}
 </div>

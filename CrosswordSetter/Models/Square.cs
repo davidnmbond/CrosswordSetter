@@ -2,11 +2,17 @@
 
 public class Square
 {
-	public const char Black = '#';
-	public const char Blank = ' ';
-	public char Character { get; set; } = Black;
+	public const string Black = "#";
+	public const string Blank = "";
+	private string _character = Black;
 
-	public bool IsWhite => Character is Blank;
+	public string Character
+	{
+		get => _character;
+		set => _character = value.ToUpperInvariant();
+	}
+
+	public bool IsWhite => Character is not Black;
 
 	public int? Number { get; set; }
 }
