@@ -1,13 +1,15 @@
+using CrosswordSetter.Interfaces;
 using CrosswordSetter.Models;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
+using System.Text;
 
 namespace CrosswordSetter.Pages;
 
 public partial class Home
 {
 	[Inject]
-	private HttpClient _httpClient { get; set; } = default!;
+	private ICrosswordDictionaryService DictionaryService { get; set; } = default!;
 
 	// Default grid size
 	private const int DefaultGridSize = 15;
@@ -24,7 +26,7 @@ public partial class Home
 	// Dictionary
 	private readonly List<string> _dictionary = [];
 
-	private bool _isGridLocked = false;
+	private bool _isGridLocked;
 	private bool _isDictionaryLoaded;
 	private int _whiteSquareCount = 0;
 
@@ -46,26 +48,7 @@ public partial class Home
 	protected override async Task OnInitializedAsync()
 	{
 		InitializeGrid();
-		// Load the dictionary file from ./wwwroot/dictionary.txt using the HttpClient
-		// and populate the _dictionary list with its contents
-		var response = await _httpClient.GetAsync("dictionaries/en.txt");
-		if (response.IsSuccessStatusCode)
-		{
-			var content = await response.Content.ReadAsStringAsync();
-			_dictionary.AddRange(content
-				.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
-				// Exclude entries that contain characters other than standard roman letters
-				.Where(x => x.All(c => char.IsLetter(c) && c < 128))
-				);
-			if (_dictionary.Count > 1000)
-			{
-				_isDictionaryLoaded = true;
-			}
-		}
-		else
-		{
-			Console.WriteLine("Failed to load dictionary file.");
-		}
+		_isDictionaryLoaded = await DictionaryService.LoadDictionaryAsync(default);
 	}
 
 	private void InitializeGrid()
@@ -80,14 +63,29 @@ public partial class Home
 		{
 			for (int j = 0; j < _gridSize; j++)
 			{
-				_crosswordGrid[i, j] = new Square
+				var newSquare = new Square
 				{
 					Character = Square.Black
 				};
+				newSquare.NotifyChanged += SquareUpdated;
+
+				_crosswordGrid[i, j] = newSquare;
 			}
 		}
 
 		_clues.Clear(); // Clear the clue list when initializing
+	}
+
+	private void SquareUpdated(object? sender, EventArgs e)
+	{
+		if (sender is not Square _)
+		{
+			return;
+		}
+
+		// Update the clue list when a square is updated
+		UpdateClues();
+		StateHasChanged();
 	}
 
 
@@ -155,50 +153,12 @@ public partial class Home
 
 					if (isDownStart)
 					{
-						// Calculate down word length
-						var wordLength = 1;
-						var downWordRowIndex = rowIndex;
-						while (true)
-						{
-							downWordRowIndex++;
-							wordLength++;
-							if (downWordRowIndex == _gridSize || _crosswordGrid[downWordRowIndex, colIndex].Character == Square.Black)
-							{
-								break;
-							}
-						}
-
-						_clues.Add(new Clue
-						{
-							Number = clueNumber,
-							Direction = Direction.Down,
-							WordLengths = [wordLength],
-							Text = "Placeholder"
-						});
+						Process(clueNumber, rowIndex, colIndex, Direction.Down);
 					}
 
 					if (isAcrossStart)
 					{
-						// Calculate across word length
-						var wordLength = 1;
-						var acrossWordColIndex = colIndex;
-						while (true)
-						{
-							acrossWordColIndex++;
-							wordLength++;
-							if (acrossWordColIndex == _gridSize || _crosswordGrid[rowIndex, acrossWordColIndex].Character == Square.Black)
-							{
-								break;
-							}
-						}
-
-						_clues.Add(new Clue
-						{
-							Number = clueNumber,
-							Direction = Direction.Across,
-							WordLengths = [wordLength],
-							Text = "Placeholder"
-						});
+						Process(clueNumber, rowIndex, colIndex, Direction.Across);
 					}
 
 					clueNumber++;
@@ -206,8 +166,110 @@ public partial class Home
 			}
 		}
 	}
+
+	private void Process(
+		int clueNumber,
+		int rowIndex,
+		int colIndex,
+		Direction direction)
+	{
+		// Calculate down word length
+		var answerStringBuilder = new StringBuilder();
+		while (true)
+		{
+			answerStringBuilder.Append(_crosswordGrid[rowIndex, colIndex].Character);
+			switch (direction)
+			{
+				case Direction.Across:
+					colIndex++;
+					break;
+				case Direction.Down:
+					rowIndex++;
+					break;
+				default:
+					throw new ArgumentOutOfRangeException(nameof(direction), direction, null);
+			}
+
+			if (rowIndex == _gridSize || colIndex == _gridSize || _crosswordGrid[rowIndex, colIndex].Character == Square.Black)
+			{
+				break;
+			}
+		}
+
+		var answer = answerStringBuilder.ToString();
+
+		_clues.Add(new Clue
+		{
+			Answer = answer,
+			Number = clueNumber,
+			StartPosition = new Position
+			{
+				Row = rowIndex,
+				Column = colIndex
+			},
+			Direction = direction,
+			WordLengths = [answer.Length],
+			Text = "Placeholder"
+		});
+	}
+
 	private void FillGrid(MouseEventArgs args)
 	{
-		throw new NotImplementedException();
+		foreach (var clue in _clues)
+		{
+			// Write to console for debugging
+			Console.WriteLine($"Filling grid for clue {clue.Number} {clue.Direction}");
+
+			// Get the start position of the clue
+			var startRow = clue.StartPosition.Row;
+			var startCol = clue.StartPosition.Column;
+			var direction = clue.Direction;
+
+			// Read the grid in the direction of the clue for the length of the clue
+
+			var totalLength = clue.WordLengths.Sum();
+			var answerStringBuilder = new StringBuilder();
+			for (int i = 0; i < totalLength; i++)
+			{
+				string letter;
+				if (direction == Direction.Across)
+				{
+					letter = _crosswordGrid[startRow, startCol + i].Character;
+				}
+				else
+				{
+					letter = _crosswordGrid[startRow + i, startCol].Character;
+				}
+
+				answerStringBuilder.Append(letter switch
+				{
+					Square.Blank => ' ',
+					_ => letter
+				});
+			}
+
+			var possibleWords = DictionaryService.SolveCrossword(answerStringBuilder.ToString());
+
+			if (possibleWords.Length > 0)
+			{
+				// Fill the grid with the first possible word
+				var word = possibleWords[0];
+				for (int i = 0; i < totalLength; i++)
+				{
+					if (direction == Direction.Across)
+					{
+						_crosswordGrid[startRow, startCol + i].Character = word[i].ToString();
+					}
+					else
+					{
+						_crosswordGrid[startRow + i, startCol].Character = word[i].ToString();
+					}
+				}
+			}
+			else
+			{
+				Console.WriteLine($"No words found for clue {clue.Number}");
+			}
+		}
 	}
 }
