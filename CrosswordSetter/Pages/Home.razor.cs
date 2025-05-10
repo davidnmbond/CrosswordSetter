@@ -88,28 +88,6 @@ public partial class Home
 		}
 
 		_clues.Clear(); // Clear the clue list when initializing
-
-		_clues.Add(new Clue
-		{
-			Number = 1,
-			Direction = Direction.Across,
-			WordLengths = [3, 4],
-			Text = "Test clue that has really long text to try to make it overrun the column"
-		});
-		_clues.Add(new Clue
-		{
-			Number = 2,
-			Direction = Direction.Across,
-			WordLengths = [3],
-			Text = "Test clue"
-		});
-		_clues.Add(new Clue
-		{
-			Number = 1,
-			Direction = Direction.Down,
-			WordLengths = [12],
-			Text = "Test clue"
-		});
 	}
 
 
@@ -144,15 +122,18 @@ public partial class Home
 		};
 
 		// Update the little numbers in the top right
-		UpdateNumbers();
+		UpdateClues();
 
 		// Notify the UI to re-render
 		StateHasChanged();
 	}
 
-	private void UpdateNumbers()
+	private void UpdateClues()
 	{
-		int number = 1;
+		// Clear existing clues
+		_clues.Clear();
+
+		int clueNumber = 1;
 		for (int rowIndex = 0; rowIndex < _gridSize; rowIndex++)
 		{
 			for (int colIndex = 0; colIndex < _gridSize; colIndex++)
@@ -169,8 +150,56 @@ public partial class Home
 					(!isLastCol && _crosswordGrid[rowIndex, colIndex + 1].Character == Square.Blank);
 
 					_crosswordGrid[rowIndex, colIndex].Number = isDownStart || isAcrossStart
-						? number++
+						? clueNumber
 						: null;
+
+					if (isDownStart)
+					{
+						// Calculate down word length
+						var wordLength = 1;
+						var downWordRowIndex = rowIndex;
+						while (true)
+						{
+							downWordRowIndex++;
+							if (downWordRowIndex == _gridSize || _crosswordGrid[downWordRowIndex, colIndex].Character == Square.Black)
+							{
+								break;
+							}
+						}
+
+						_clues.Add(new Clue
+						{
+							Number = clueNumber,
+							Direction = Direction.Down,
+							WordLengths = [wordLength],
+							Text = "Placeholder"
+						});
+					}
+
+					if (isAcrossStart)
+					{
+						// Calculate across word length
+						var wordLength = 1;
+						var acrossWordColIndex = colIndex;
+						while (true)
+						{
+							acrossWordColIndex++;
+							if (acrossWordColIndex == _gridSize || _crosswordGrid[rowIndex, acrossWordColIndex].Character == Square.Black)
+							{
+								break;
+							}
+						}
+
+						_clues.Add(new Clue
+						{
+							Number = clueNumber,
+							Direction = Direction.Across,
+							WordLengths = [wordLength],
+							Text = "Placeholder"
+						});
+					}
+
+					clueNumber++;
 				}
 			}
 		}

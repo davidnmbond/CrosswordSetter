@@ -43,7 +43,16 @@
 						}
 						@if (square.IsWhite)
 						{
-							<input class="squareLetter" @bind="@square.Character" type="text" maxlength="1" disabled="@(!_isGridLocked)" />
+							if (_isGridLocked)
+							{
+								<input class="squareLetter" @bind="@square.Character" type="text" maxlength="1" />
+							}
+							else
+							{
+								<div class="squareLetter" @onclick="(x => ToggleSquareColor(currentRow, currentCol))">
+									@square.Character
+								</div>
+							}
 						}
 					</div>
 				}
